@@ -1,0 +1,25 @@
+{
+  "name": "orobos-vine",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "node app"
+  },
+  "dependencies": {
+    "express": "~3.0.0beta4",
+    "twilio-api": "~0.3.0",
+    "optimist": "~0.3.4",
+    "dnode": "~1.0.0",
+    "async": "~0.1.22"
+  },
+  "devDependencies": {},
+  "optionalDependencies": {},
+  "engines": {
+    "node": "0.8.x"
+  },
+  "author": "Emily Rose <emily@contactvibe.com>",
+  "description": "Orobos Vine Monitor",
+  "repository": {
+    "url": ""
+  }
+}
