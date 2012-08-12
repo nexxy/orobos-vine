@@ -8,6 +8,7 @@
         , twilio = require('twilio-api')
         , async = require('async')
         , dnode = require('dnode')
+        , util = require('util')
         , path = require('path')
         , net = require('net')
         , fs = require('fs')
@@ -16,19 +17,15 @@
     /**
     * UTILITY STUFFS
     */
-    var log = function() {
+    var log = function log() {
 
         var 
             d = (new Date()).toLocaleString()
-            , format = arguments[0]
+            , args = Array.prototype.slice.call(arguments)
+            , fmt = util.format(args.shift(), args)
         ;
 
-        delete arguments[0];
-        console.log(
-
-            ["[", d, "] ", format].join('')
-            , arguments
-        );
+        console.log(["[", d, "] ", fmt].join(''));
     };
 
     /**
@@ -101,7 +98,7 @@
             log("config.json: %s\r\n", e);
             process.exit(1);
         }
-
+        log("Configuration loaded.");
         return conf;
     })();
 
@@ -127,6 +124,11 @@
 
             var d = dnode(DeviceInterface);
 
+            d.on('end', function() {
+
+                log("Device disconnected: %s.", this.id);
+            })
+
             c.pipe(d).pipe(c);
         })
     ;
@@ -134,6 +136,7 @@
     app.use(cli.middleware());
     app.listen(config.port.app);
     server.listen(config.port.device);
+    log("Now listening for orobos connections on port %s.", config.port.device);
 
     var DeviceInterface = {
 
@@ -150,7 +153,6 @@
         }
         , detection : function detection(id, stat, cb) {
 
-            log("Received detection from device: %s, type: ", id, stat ? "lost USB" : "triggered");
             
             if(!activeTime()) {
 
@@ -168,14 +170,18 @@
 
             if((id) && online[id] && !voiceActive && (alarmActive)) {
 
+                log("Received detection from device: %s, type: ", id, (stat ? "lost USB" : "triggered"));
                 voiceActive = true;
                 callEveryone(id, cb);
-
                 return;
             }
+            /**
+            * Already on a call with at least 1 person
+            */
             else if(voiceActive) {
 
                 cb(null, id);
+                return;
             }
             else if(!alarmActive) {
 
@@ -193,9 +199,11 @@
             if(typeof cb !== "function") { return; }
 
             this.registered = (new Date()).valueOf();
+            this.id = id;
 
             if(id) {
 
+                log("Device %s connected.", id);
                 online[id] = true;
                 cb(null, id);
             }
@@ -223,28 +231,32 @@
 
             return call.gather(cb, { 
 
-                numDigits : codes.passcode.length
+                numDigits : config.code.passcode.length
                 , timeout : config.responseTimeout 
             }).say(config.prompt.passcode, fem);
         };
 
         var callDeactivate = function callDeactivate(call, cb) { 
 
-            var code = config.code.deactivate.value;
+            var 
+                codeVal = config.code.deactivate.value
+                , codePhon = config.code.deactivate.phonetic
+                spoken = util.format(config.prompt.deactivate, codePhon)
+            ;
 
             return call.gather(cb, { 
 
-                numDigits : code.length
+                numDigits : codeVal.length
                 , timeout : config.responseTimeout 
-            }).say(config.prompt.deactivate, fem);
+            }).say(spoken, fem);
         };
 
         var callActivate = function callActivate(call, cb) {
 
             var 
                 codeVal = config.code.activate.value
-                , codePhon = conf.code.activate.phonetic
-                , spoken = config.prompt.activate.replace('%s', codePhon)
+                , codePhon = config.code.activate.phonetic
+                , spoken = util.format(config.prompt.activate, codePhon)
             ;
 
             return call.gather(cb, { 
@@ -297,7 +309,7 @@
                 systemStatus = config.status[
                     alarmActive ? "active" : "inactive"
                 ]
-                , spoken = config.status.phrase.replace('%s', systemStatus)
+                , spoken = util.format(config.status.phrase, systemStatus)
             ;
 
             call.say(config.response.authed, fem);
@@ -431,11 +443,13 @@
 
             var 
                 digits = config.code.deactivate.value.length
-                , spoken = config.prompt.deactivate
-                    .replace(config.code.deactivate.phonetic)
+                , spoken = util.format(
+                    config.prompt.deactivate
+                    , config.code.deactivate.phonetic
+                )
             ;
 
-            log("Prompting %s to enter selection...");
+            log("Prompting %s to enter selection...", num);
             return call.gather(cb, {
 
                 timeout : config.responseTimeout
